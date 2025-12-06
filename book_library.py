@@ -1,18 +1,19 @@
 import json
 from rbtree import RedBlackTree as rbt
-from string import ascii_lowercase
 from tabulate import tabulate
 
 
 
 class Book:
     def __init__(self, title, author, realise_year):
-        if not 0 < len(title):
+        if not title:
             raise ValueError("Book title should contain at least one character")
         self.title = title.capitalize()
-        if not 0 < len(author):
+        if not author:
             raise ValueError("Author should contain at least one character")
         self.author = author
+        if not isinstance(realise_year, int):
+            raise ValueError("Realise year should be an integer")
         self.realise_year = realise_year
 
     def __str__(self):
@@ -50,8 +51,7 @@ class Book:
 
 
 class BookManager:
-    # ordered_by_letter = {i: rbt() for i in ascii_lowercase}
-    ordered_by_letter = {}
+    _ordered_by_letter = {}
 
 
     def add_book(self, title, author, realise_year):
@@ -59,10 +59,10 @@ class BookManager:
         title_first_c = new_book.title[0]
 
         try:
-            letter_tree = self.ordered_by_letter[title_first_c]
+            letter_tree = self._ordered_by_letter[title_first_c]
         except KeyError:
-            self.ordered_by_letter[title_first_c] = rbt()
-            letter_tree = self.ordered_by_letter[title_first_c]
+            self._ordered_by_letter[title_first_c] = rbt()
+            letter_tree = self._ordered_by_letter[title_first_c]
 
         letter_tree.insert(
             new_book
@@ -71,19 +71,31 @@ class BookManager:
     def print_all_books(self):
         headers = ["Title", "Author", "Realise year"]
         body = []
-        for i in sorted(self.ordered_by_letter.keys()):
-            node_list = self.ordered_by_letter[i].get_all_nodes()
+        for i in sorted(self._ordered_by_letter.keys()):
+            node_list = self._ordered_by_letter[i].get_all_nodes()
             if node_list:
                 for node in node_list:
                     book = node.value
                     body.append([book.title, book.author, book.realise_year])
             body = sorted(body, key=lambda title:title[0])                           # sorting body by alphabetic order
-        print(tabulate(body, headers=headers, showindex="always", tablefmt="pipe", colalign=("center", "left", "left", "center")))
+        try:
+            print(tabulate(
+                body,
+                headers=headers,
+                showindex="always",
+                tablefmt="pipe",
+                colalign=("center", "left", "left", "center")
+            ))
+        except IndexError:
+            print("No books in library")
+
 
     def search_book(self, title):
-        # todo key validation
         t_book = Book(title, "fake", 0)
-        tree = self.ordered_by_letter[t_book.title[0]]
+        try:
+            tree = self._ordered_by_letter[t_book.title[0]]
+        except KeyError:
+            return f"Could not find book by title '{title.capitalize()}'."
         search_result = tree.search(t_book)
         if search_result:
             return search_result.value
@@ -103,7 +115,7 @@ class BookManager:
             raise ValueError("File must json")
 
         book_list = []
-        for _, tree in self.ordered_by_letter.items():
+        for _, tree in self._ordered_by_letter.items():
             node_list = tree.get_all_nodes()
             if node_list:
                 for node in node_list:
@@ -116,3 +128,25 @@ class BookManager:
 
         with open(file_name, "w") as f:
             json.dump(book_list, f, indent=4)
+
+    def consol_interface(self):
+        while True:
+            command = input("command: ").strip()
+
+            match command:
+                case "ab":
+                    title = input("title: ").strip()
+                    author = input("author: ").strip()
+                    try:
+                        realise_year = int(input("realise year: "))
+                    except ValueError:
+                        print("Year must be a number")
+                        continue
+                    self.add_book(title, author, realise_year)
+                case "sb":
+                    title = input("title: ").strip()
+                    print(self.search_book(title))
+                case "pab":
+                    self.print_all_books()
+                case _ :
+                    print(f"Command '{command}' was not found.")
